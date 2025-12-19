@@ -1,0 +1,86 @@
+# docker/docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: flask-backend-dev
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - DATABASE_URL=sqlite:///app/instance/database.db
+      - SECRET_KEY=dev-secret-key-123
+      - JWT_SECRET_KEY=dev-jwt-secret-456
+      - FRONTEND_URL=http://localhost:3000
+      - BACKEND_URL=http://localhost:5000
+    volumes:
+      - ../app:/app/app
+      - ../instance:/app/instance
+      - ./logs:/app/logs
+    command: python run.py
+    restart: unless-stopped
+    networks:
+      - flask-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: flask-postgres-dev
+    environment:
+      POSTGRES_DB: flaskdb
+      POSTGRES_USER: flaskuser
+      POSTGRES_PASSWORD: flaskpass123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - flask-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flaskuser -d flaskdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: flask-redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redispass123
+    volumes:
+      - redis_data:/data
+    networks:
+      - flask-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    container_name: flask-adminer-dev
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - flask-network
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  flask-network:
+    driver: bridge

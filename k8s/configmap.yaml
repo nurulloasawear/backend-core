@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flask-config
+  namespace: flask-app
+data:
+  FLASK_ENV: production
+  DATABASE_URL: sqlite:////data/database.db
+  FRONTEND_URL: https://your-frontend.com
+  BACKEND_URL: https://api.yourdomain.com
+  LOG_LEVEL: INFO

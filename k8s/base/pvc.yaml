@@ -1,0 +1,16 @@
+.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: flask-data-pvc
+  namespace: flask-app
+  labels:
+    app: flask-backend
+    storage: data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

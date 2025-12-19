@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-backend
+  namespace: flask-app
+  labels:
+    app: flask-backend
+    component: backend
+    version: v1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: flask-backend
+  template:
+    metadata:
+      labels:
+        app: flask-backend
+        component: backend
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: flask-sa
+      containers:
+      - name: flask-app
+        image: your-registry/flask-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+          name: http
+          protocol: TCP
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: flask-secrets
+              key: SECRET_KEY
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: flask-secrets
+              key: JWT_SECRET_KEY
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: flask-secrets
+              key: GOOGLE_CLIENT_ID
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: flask-secrets
+              key: GOOGLE_CLIENT_SECRET
+        - name: FLASK_ENV
+          value: production
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: flask-config
+              key: DATABASE_URL
+        - name: FRONTEND_URL
+          valueFrom:
+            configMapKeyRef:
+              name: flask-config
+              key: FRONTEND_URL
+        - name: BACKEND_URL
+          valueFrom:
+            configMapKeyRef:
+              name: flask-config
+              key: BACKEND_URL
+        - name: LOG_LEVEL
+          value: INFO
+        - name: REDIS_URL
+          value: "redis://redis-service:6379/0"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 10
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/instance
+          subPath: instance
+        - name: data-volume
+          mountPath: /app/logs
+          subPath: logs
+        - name: data-volume
+          mountPath: /app/data
+          subPath: data
+        securityContext:
+          runAsUser: 1001
+          runAsGroup: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: flask-data-pvc
+      - name: config-volume
+        configMap:
+          name: flask-config
+      securityContext:
+        fsGroup: 1001
+        runAsNonRoot: true
